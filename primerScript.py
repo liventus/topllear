@@ -11,10 +11,21 @@ ventana = pygame.display.set_mode((constantes.ANCHO_VENTANA,
 
 pygame.display.set_caption("TOPLLEAR")
 
-player_image = pygame.image.load('images//characteres//characteres//Player//imagen.png')
-player_image =  pygame.transform.scale(player_image, (player_image.get_width()*constantes.SCALA_PERSONAJE,player_image.get_height()*constantes.SCALA_PERSONAJE))
+def escalar_img(image, scale):
+    w = image.get_width()
+    h = image.get_height()
+    nueva_imagen = pygame.transform.scale(image, (w*scale, h*scale))
+    return nueva_imagen
 
-jugador = Personaje(50,50,player_image)
+animciones = []
+for i in range(7):
+    img = pygame.image.load(f"images//characteres//characteres//JUGADOR//Walking_KG_1_{i+1}.png")
+    img = escalar_img(img, constantes.SCALA_PERSONAJE)
+    animciones.append(img)
+
+player_image = pygame.image.load('images//characteres//characteres//Player//imagen.png')
+player_image =  escalar_img(player_image, constantes.SCALA_PERSONAJE)
+jugador = Personaje(50,50,animciones)
 
 #definir variables de movimiento del jugador
 
@@ -48,6 +59,7 @@ while run:
 
     #mover al jugador
     jugador.movimiento(delta_x, delta_y)
+    jugador.update()
 
 
     jugador.dibujar(ventana)
