@@ -6,11 +6,15 @@ from personaje import Personaje
 pygame.init()
 ventana = pygame.display.set_mode((constantes.ANCHO_VENTANA,
                                    constantes.ALTO_VENTANA))
-jugador = Personaje(50,50)
 
 
 
 pygame.display.set_caption("TOPLLEAR")
+
+player_image = pygame.image.load('images//characteres//characteres//Player//imagen.png')
+player_image =  pygame.transform.scale(player_image, (player_image.get_width()*constantes.SCALA_PERSONAJE,player_image.get_height()*constantes.SCALA_PERSONAJE))
+
+jugador = Personaje(50,50,player_image)
 
 #definir variables de movimiento del jugador
 
