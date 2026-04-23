@@ -13,7 +13,8 @@ class Personaje():
         self.update_time = pygame.time.get_ticks()
 
         self.image = animaciones[self.frame_index]
-        self.forma = pygame.Rect(0,0,constantes.ANCHO_PERSONAJE,constantes.ALTO_PERSONAJE)
+        self.forma = self.image.get_rect()
+        #self.forma = pygame.Rect(0,0,constantes.ANCHO_PERSONAJE,constantes.ALTO_PERSONAJE)
         self.forma.center = (x,y)
 
     def update(self):
@@ -41,4 +42,4 @@ class Personaje():
     def dibujar(self,interfaz):
         imagen_flip = pygame.transform.flip(self.image,self.flip,False)
         interfaz.blit(imagen_flip,self.forma)
-        #pygame.draw.rect(interfaz,constantes.COLOR_PERSONAJE,self.forma)
+        #pygame.draw.rect(interfaz,constantes.COLOR_PERSONAJE,self.forma,1)

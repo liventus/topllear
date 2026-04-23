@@ -2,7 +2,7 @@ print("Hola mundo")
 import pygame
 import constantes
 from personaje import Personaje
-
+from weapon import Weapon
 pygame.init()
 ventana = pygame.display.set_mode((constantes.ANCHO_VENTANA,
                                    constantes.ALTO_VENTANA))
@@ -19,13 +19,18 @@ def escalar_img(image, scale):
 
 animciones = []
 for i in range(7):
-    img = pygame.image.load(f"images//characteres//characteres//JUGADOR//Walking_KG_1_{i+1}.png")
+    img = pygame.image.load(f"images//characteres//characteres//JUGADOR//Walking_KG_1_{i+1}.png").convert_alpha()
     img = escalar_img(img, constantes.SCALA_PERSONAJE)
     animciones.append(img)
 
-player_image = pygame.image.load('images//characteres//characteres//Player//imagen.png')
-player_image =  escalar_img(player_image, constantes.SCALA_PERSONAJE)
+imagen_pistola = pygame.image.load(f"images//characteres//characteres//weapons//gun.png").convert_alpha()
+imagen_pistola = escalar_img(imagen_pistola, constantes.SCALA_ARMA)
+
+
+
 jugador = Personaje(50,50,animciones)
+
+pistola = Weapon(imagen_pistola)
 
 #definir variables de movimiento del jugador
 
@@ -59,10 +64,18 @@ while run:
 
     #mover al jugador
     jugador.movimiento(delta_x, delta_y)
+    #actualiza el estado del jugador
     jugador.update()
+    pistola.update(jugador)
+
+    #actualiza el arma
+
+
 
 
     jugador.dibujar(ventana)
+    pistola.dibujar(ventana)
+
     for event in pygame.event.get():
 
 
