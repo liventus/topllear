@@ -1,7 +1,4 @@
-# 🔢 Diccionario que contiene los números del 0 al 9
-# Cada número es una matriz de 5 filas x 3 columnas
-# 1 = píxel encendido (█)
-# 0 = píxel apagado (espacio)
+
 numeros = {
     "0": [[1, 1, 1], [1, 0, 1], [1, 0, 1], [1, 0, 1], [1, 1, 1]],
     "1": [[0, 0, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1]],
