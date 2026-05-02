@@ -52,7 +52,7 @@ def fade_out():
 fade_in()
 
 tiempo_inicio = pygame.time.get_ticks()
-duracion = 7000
+duracion = 10000
 
 fade_logo_in = 1500     # aparece en 1.5 segundos
 tiempo_visible = 3500   # se queda visible
@@ -147,9 +147,140 @@ velocidad_escala = 0.01
 
 
 mostrar_gear = False
-delay_gear = 500  # milisegundos (0.5 segundos después del top)
+delay_gear = 1000  # milisegundos (0.5 segundos después del top)
+
+pantalla_juego = pygame.image.load("images/topgear/img_6.png").convert()
+pantalla_juego = pygame.transform.scale(pantalla_juego, (ANCHO, ALTO))
+en_juego = False
+ventana.blit(fondo, (0, 0))
+
+menu_img_6 = pygame.image.load("images/topgear/img_6.png").convert()
+menu_img_6 = pygame.transform.scale(menu_img_6, (ANCHO, ALTO))
+
+menu_img_7 = pygame.image.load("images/topgear/img_7.png").convert()
+menu_img_7 = pygame.transform.scale(menu_img_7, (ANCHO, ALTO))
+
+sub_menu = pygame.image.load("images/topgear/img_9.png").convert()
+sub_menu = pygame.transform.scale(sub_menu, (ANCHO, ALTO))
+
+pantalla_carrera = pygame.image.load("images/topgear/mapa.png").convert()
+pantalla_carrera = pygame.transform.scale(pantalla_carrera, (ANCHO, ALTO))
+
+pantalla_carga = pygame.image.load("images/topgear/img_12.png").convert()
+pantalla_carga = pygame.transform.scale(pantalla_carga, (ANCHO, ALTO))
+
+pantalla_juego_final = pygame.image.load("images/topgear/juegocomotal.png").convert()
+pantalla_juego_final = pygame.transform.scale(pantalla_juego_final, (ANCHO, ALTO))
+
+tiempo_estado = 0
+
+estado = "intro_menu"
+opcion_menu = "img_6"
+musica_juego_iniciada = False
 while True:
     reloj.tick(FPS)
+    if estado == "menu_opciones":
+
+        if opcion_menu == "img_6":
+            ventana.blit(menu_img_6, (0, 0))
+        elif opcion_menu == "img_7":
+            ventana.blit(menu_img_7, (0, 0))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+
+                if event.key == pygame.K_s:
+                    opcion_menu = "img_7"
+
+                if event.key == pygame.K_w:
+                    opcion_menu = "img_6"
+
+                if event.key == pygame.K_RETURN:
+                    if opcion_menu == "img_6":
+                        estado = "submenu"
+
+
+                    elif opcion_menu == "img_7":
+
+                        estado = "mapa"
+
+                        tiempo_estado = pygame.time.get_ticks()
+
+        pygame.display.update()
+        continue
+
+    if estado == "submenu":
+        ventana.blit(sub_menu, (0, 0))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    estado = "menu_opciones"
+                    opcion_menu = "img_6"
+
+        pygame.display.update()
+        continue
+
+    if estado == "mapa":
+        ventana.blit(pantalla_carrera, (0, 0))
+
+        if pygame.time.get_ticks() - tiempo_estado > 3000:
+            estado = "carga_juego"
+            tiempo_estado = pygame.time.get_ticks()
+
+            if not musica_juego_iniciada:
+                pygame.mixer.music.load("images/sonido/lasvegas.mp3")
+                pygame.mixer.music.play(-1)
+                musica_juego_iniciada = True
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        pygame.display.update()
+        continue
+
+    if estado == "carga_juego":
+        ventana.blit(pantalla_carga, (0, 0))
+
+        if pygame.time.get_ticks() - tiempo_estado > 2000:
+            estado = "juego_final"
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        pygame.display.update()
+        continue
+
+    if estado == "juego_final":
+        ventana.blit(pantalla_juego_final, (0, 0))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        pygame.display.update()
+        continue
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        pygame.display.update()
+        continue
 
     ventana.blit(fondo, (0, 0))
     if y_titulo < y_final:
@@ -218,6 +349,7 @@ while True:
     if mostrar_gear:
         ventana.blit(gear_final, rect_gear)
 
+
     # Luego de 1 segundo aparece PRESS START
     if tiempo_final_titulo is not None:
         if pygame.time.get_ticks() - tiempo_final_titulo > 1500:
@@ -233,6 +365,7 @@ while True:
 
         ventana.blit(texto, rect_texto)
 
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -240,6 +373,6 @@ while True:
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN and mostrar_press_start:
-                print("Empieza el juego")
+                estado = "menu_opciones"
 
     pygame.display.update()
