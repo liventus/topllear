@@ -14,7 +14,7 @@ numeros = {
 
 
 def mostrar_display(lista_numeros):
-    #Convertimos todos los números a string y aseguramos 3 dígitos
+    #Convertimos todos los números a string y aseguramos 3 dígitos  eLonepiece exist
     lista_numeros = [str(n).zfill(3) for n in lista_numeros]
 
     #Recorremos cada número de la lista
