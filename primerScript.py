@@ -24,6 +24,269 @@ pygame.mixer.music.load("images/sonido/intro.mp3")
 pygame.mixer.music.play(-1)  # -1 para que se repita
 
 
+# =========================
+# INTRO CARRERA TOP GEAR
+# =========================
+
+distancia_meta = 200
+velocidad_intro = 0.9
+intro_carrera_terminada = False
+offset_pista = 0
+
+
+def interpolar(a, b, t):
+    return a + (b - a) * t
+
+
+def reiniciar_intro_carrera():
+    global distancia_meta, intro_carrera_terminada, offset_pista
+    distancia_meta = 200
+    intro_carrera_terminada = False
+    offset_pista = 0
+
+
+def dibujar_intro_pista():
+    global distancia_meta, intro_carrera_terminada, offset_pista
+
+    if not intro_carrera_terminada:
+        distancia_meta -= velocidad_intro
+        offset_pista += 9
+
+        if distancia_meta <= 0:
+            distancia_meta = 0
+            intro_carrera_terminada = True
+
+    progreso = 1 - (distancia_meta / 200)
+
+    # =====================
+    # CIELO CON DEGRADADO
+    # =====================
+    for y in range(0, ALTO):
+        if y < 230:
+            r = 80 + int(y * 0.25)
+            g = 170 + int(y * 0.15)
+            b = 235
+            pygame.draw.line(ventana, (r, g, b), (0, y), (ANCHO, y))
+        else:
+            break
+
+    # SOL
+    pygame.draw.circle(ventana, (255, 220, 90), (670, 85), 45)
+    pygame.draw.circle(ventana, (255, 240, 150), (670, 85), 30)
+
+    # =====================
+    # MONTAÑAS
+    # =====================
+    pygame.draw.polygon(ventana, (155, 105, 75), [(0, 230), (120, 115), (260, 230)])
+    pygame.draw.polygon(ventana, (175, 120, 80), [(180, 230), (380, 80), (590, 230)])
+    pygame.draw.polygon(ventana, (145, 95, 70), [(500, 230), (680, 105), (850, 230)])
+
+    pygame.draw.polygon(ventana, (205, 155, 105), [(0, 250), (220, 150), (430, 250)])
+    pygame.draw.polygon(ventana, (195, 145, 95), [(360, 250), (580, 145), (820, 250)])
+
+    # =====================
+    # SUELO / DESIERTO
+    # =====================
+    pygame.draw.rect(ventana, (210, 155, 90), (0, 230, ANCHO, ALTO))
+
+    # franjas laterales para velocidad
+    for i in range(18):
+        y = 230 + ((i * 38 + offset_pista * 0.8) % 370)
+        grosor = 8 + int((y - 230) / 18)
+        color = (225, 175, 100) if i % 2 == 0 else (195, 135, 75)
+
+        pygame.draw.rect(ventana, color, (0, y, 180, grosor))
+        pygame.draw.rect(ventana, color, (620, y, 180, grosor))
+
+    # =====================
+    # CARRETERA PRINCIPAL
+    # =====================
+    carretera_top_y = 205
+    carretera_bottom_y = 600
+
+    izquierda_arriba = 340
+    derecha_arriba = 460
+    izquierda_abajo = -40
+    derecha_abajo = 840
+
+    pygame.draw.polygon(
+        ventana,
+        (32, 38, 42),
+        [
+            (izquierda_arriba, carretera_top_y),
+            (derecha_arriba, carretera_top_y),
+            (derecha_abajo, carretera_bottom_y),
+            (izquierda_abajo, carretera_bottom_y)
+        ]
+    )
+
+    # sombra central
+    pygame.draw.polygon(
+        ventana,
+        (42, 48, 52),
+        [
+            (380, carretera_top_y),
+            (420, carretera_top_y),
+            (560, carretera_bottom_y),
+            (240, carretera_bottom_y)
+        ]
+    )
+
+    # =====================
+    # FUNCIÓN DE PERSPECTIVA
+    # =====================
+    def punto_pista(x_top, x_bottom, escala):
+        return interpolar(x_top, x_bottom, escala)
+
+    # =====================
+    # BORDES ROJO / BLANCO
+    # =====================
+    for i in range(22):
+        y = carretera_top_y + ((i * 38 + offset_pista) % 430)
+        escala = (y - carretera_top_y) / (carretera_bottom_y - carretera_top_y)
+
+        izq = punto_pista(izquierda_arriba, izquierda_abajo, escala)
+        der = punto_pista(derecha_arriba, derecha_abajo, escala)
+
+        ancho_borde = 18 + escala * 55
+        alto_borde = 8 + escala * 22
+
+        color = (230, 30, 30) if i % 2 == 0 else (245, 245, 245)
+
+        pygame.draw.polygon(
+            ventana,
+            color,
+            [
+                (izq - ancho_borde, y),
+                (izq + 8, y),
+                (izq + 18, y + alto_borde),
+                (izq - ancho_borde - 20, y + alto_borde)
+            ]
+        )
+
+        pygame.draw.polygon(
+            ventana,
+            color,
+            [
+                (der - 8, y),
+                (der + ancho_borde, y),
+                (der + ancho_borde + 20, y + alto_borde),
+                (der - 18, y + alto_borde)
+            ]
+        )
+
+    # =====================
+    # LÍNEAS CENTRALES
+    # =====================
+    for i in range(12):
+        y = carretera_top_y + 20 + ((i * 70 + offset_pista * 1.4) % 430)
+        escala = (y - carretera_top_y) / (carretera_bottom_y - carretera_top_y)
+
+        ancho = 5 + escala * 18
+        largo = 20 + escala * 70
+
+        x = ANCHO // 2
+
+        pygame.draw.polygon(
+            ventana,
+            (235, 235, 220),
+            [
+                (x - ancho, y),
+                (x + ancho, y),
+                (x + ancho * 2, y + largo),
+                (x - ancho * 2, y + largo)
+            ]
+        )
+
+
+
+    # =====================
+    # META ACERCÁNDOSE
+    # =====================
+    meta_y = interpolar(130, 390, progreso)
+    meta_ancho = interpolar(120, 620, progreso)
+    meta_alto = interpolar(28, 90, progreso)
+    meta_x = ANCHO // 2 - meta_ancho // 2
+
+    poste_alto = meta_alto + 110
+
+    pygame.draw.rect(ventana, (60, 60, 60), (meta_x + 12, meta_y, 14, poste_alto))
+    pygame.draw.rect(ventana, (60, 60, 60), (meta_x + meta_ancho - 26, meta_y, 14, poste_alto))
+
+    pygame.draw.rect(ventana, (20, 20, 20), (meta_x - 4, meta_y - 4, meta_ancho + 8, meta_alto + 8))
+    pygame.draw.rect(ventana, (240, 240, 240), (meta_x, meta_y, meta_ancho, meta_alto))
+
+    cuadros_x = 14
+    cuadros_y = 2
+    cuadro_w = meta_ancho / cuadros_x
+    cuadro_h = meta_alto / cuadros_y
+
+    for fila in range(cuadros_y):
+        for col in range(cuadros_x):
+            if (fila + col) % 2 == 0:
+                color = (20, 20, 20)
+            else:
+                color = (245, 245, 245)
+
+            pygame.draw.rect(
+                ventana,
+                color,
+                (
+                    meta_x + col * cuadro_w,
+                    meta_y + fila * cuadro_h,
+                    cuadro_w,
+                    cuadro_h
+                )
+            )
+
+    fuente_meta = pygame.font.SysFont("arial", int(22 + progreso * 24), bold=True)
+    texto_meta = fuente_meta.render("START", True, (255, 255, 255))
+    ventana.blit(
+        texto_meta,
+        (ANCHO // 2 - texto_meta.get_width() // 2, meta_y + meta_alto + 12)
+    )
+
+    # =====================
+    # AUTO AL LLEGAR A META
+    # =====================
+    if intro_carrera_terminada:
+        auto_x = ANCHO // 2 - 85
+        auto_y = 430
+
+        auto = pygame.image.load("images/topgear/auto/img.png").convert_alpha()
+        # El auto empieza pequeño porque está lejos,
+        # y crece mientras la cámara se acerca a la meta.
+        auto_ancho = int(45 + progreso * 125)
+        auto_alto = int(25 + progreso * 65)
+
+        auto = pygame.transform.scale(auto, (auto_ancho, auto_alto))
+
+        auto_x = ANCHO // 2 - auto_ancho // 2
+
+        # Se mantiene ubicado sobre la pista, cerca de la línea de meta
+        auto_y = int(interpolar(meta_y + meta_alto + 120, 430, progreso))
+
+        ventana.blit(auto, (auto_x, auto_y))
+
+    # =====================
+    # HUD
+    # =====================
+    fuente = pygame.font.SysFont("arial", 30, bold=True)
+
+    texto = fuente.render(f"{int(distancia_meta)} m", True, (255, 255, 255))
+    sombra = fuente.render(f"{int(distancia_meta)} m", True, (0, 0, 0))
+
+    ventana.blit(sombra, (32, 32))
+    ventana.blit(texto, (30, 30))
+
+    if intro_carrera_terminada:
+        texto2 = fuente.render("EN META - ESPERANDO CONTEO", True, (255, 255, 255))
+        sombra2 = fuente.render("EN META - ESPERANDO CONTEO", True, (0, 0, 0))
+
+        x = ANCHO // 2 - texto2.get_width() // 2
+        ventana.blit(sombra2, (x + 2, 542))
+        ventana.blit(texto2, (x, 540))
+
 def fade_in():
     oscuridad = pygame.Surface((ANCHO, ALTO))
     oscuridad.fill((0, 0, 0))
@@ -253,6 +516,7 @@ while True:
         ventana.blit(pantalla_carga, (0, 0))
 
         if pygame.time.get_ticks() - tiempo_estado > 2000:
+            reiniciar_intro_carrera()
             estado = "juego_final"
 
         for event in pygame.event.get():
@@ -264,20 +528,16 @@ while True:
         continue
 
     if estado == "juego_final":
-        ventana.blit(pantalla_juego_final, (0, 0))
+        dibujar_intro_pista()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
 
-        pygame.display.update()
-        continue
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    estado = "menu_opciones"
 
         pygame.display.update()
         continue
