@@ -23,6 +23,7 @@ curva_pista = 0
 
 tiempo_inicio_conteo = None
 conteo_terminado = False
+fase_carrera = "intro"
 velocidad_auto = 0
 
 def dibujar_auto(progreso):
@@ -165,6 +166,7 @@ offset_pista = 0
 def reiniciar_intro_carrera():
     global distancia_meta, intro_carrera_terminada, offset_pista
     global tiempo_inicio_conteo, conteo_terminado, velocidad_auto
+    global fase_carrera
 
     distancia_meta = 200
     intro_carrera_terminada = False
@@ -172,7 +174,7 @@ def reiniciar_intro_carrera():
     tiempo_inicio_conteo = None
     conteo_terminado = False
     velocidad_auto = 0
-
+    fase_carrera = "intro"
 
 def dibujar_fondo_carrera():
     # Cielo
@@ -201,10 +203,10 @@ def dibujar_fondo_carrera():
 def dibujar_pista_textura(progreso):
     global offset_pista
 
-    if not conteo_terminado:
-        offset_pista += 6
-    else:
-        offset_pista += velocidad_auto
+    if fase_carrera == "intro":
+        offset_pista -= 6
+    elif fase_carrera == "carrera":
+        offset_pista -= velocidad_auto
 
     dibujar_fondo_carrera()
 
@@ -310,15 +312,16 @@ def dibujar_meta_y_auto(progreso):
 
 
 def dibujar_intro_carrera():
+    global distancia_meta, intro_carrera_terminada
+    global tiempo_inicio_conteo, conteo_terminado, fase_carrera
 
-    global distancia_meta, intro_carrera_terminada, tiempo_inicio_conteo, conteo_terminado
-
-    if not intro_carrera_terminada:
+    if fase_carrera == "intro":
         distancia_meta -= velocidad_intro
 
         if distancia_meta <= 0:
             distancia_meta = 0
             intro_carrera_terminada = True
+            fase_carrera = "conteo"
             tiempo_inicio_conteo = pygame.time.get_ticks()
 
     progreso = 1 - (distancia_meta / 200)
@@ -334,7 +337,7 @@ def dibujar_intro_carrera():
     ventana.blit(sombra, (32, 32))
     ventana.blit(texto, (30, 30))
 
-    if intro_carrera_terminada and not conteo_terminado:
+    if fase_carrera == "conteo":
         tiempo_pasado = pygame.time.get_ticks() - tiempo_inicio_conteo
 
         if tiempo_pasado < 1000:
@@ -346,6 +349,7 @@ def dibujar_intro_carrera():
         else:
             numero = ""
             conteo_terminado = True
+            fase_carrera = "carrera"
 
         if numero != "":
             fuente_conteo = pygame.font.SysFont("arial", 90, bold=True)
@@ -494,17 +498,15 @@ while True:
     # =========================
     if estado == "juego_final":
 
-        if conteo_terminado:
+        if fase_carrera == "carrera":
             teclas = pygame.key.get_pressed()
 
             if teclas[pygame.K_SPACE]:
                 velocidad_auto += 0.25
-
                 if velocidad_auto > 35:
                     velocidad_auto = 35
             else:
                 velocidad_auto -= 0.12
-
                 if velocidad_auto < 0:
                     velocidad_auto = 0
 
