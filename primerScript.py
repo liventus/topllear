@@ -2,9 +2,26 @@ import pygame
 import sys
 import math
 
+
+numeros = {
+    "0": [[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+    "1": [[0,0,1],[0,0,1],[0,0,1],[0,0,1],[0,0,1]],
+    "2": [[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+    "3": [[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]],
+    "4": [[1,0,1],[1,0,1],[1,1,1],[0,0,1],[0,0,1]],
+    "5": [[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+    "6": [[1,1,1],[1,0,0],[1,1,1],[1,0,1],[1,1,1]],
+    "7": [[1,1,1],[0,0,1],[0,0,1],[0,0,1],[0,0,1]],
+    "8": [[1,1,1],[1,0,1],[1,1,1],[1,0,1],[1,1,1]],
+    "9": [[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]]
+}
 global velocidad_auto
 pygame.init()
 pygame.mixer.init()
+
+velocidad_auto = 0
+velocidad_max = 200
+aceleracion = velocidad_max / 5
 
 ANCHO = 800
 ALTO = 600
@@ -16,7 +33,7 @@ ventana = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("TOPLLEAR")
 reloj = pygame.time.Clock()
 # velocidad del auto
-velocidad_auto = 0
+
 
 # movimiento lateral de pista
 curva_pista = 0
@@ -24,7 +41,57 @@ curva_pista = 0
 tiempo_inicio_conteo = None
 conteo_terminado = False
 fase_carrera = "intro"
-velocidad_auto = 0
+
+def dibujar_numero_display(numero, x, y, tamaño=8):
+    matriz = numeros[str(numero)]
+
+    for fila in range(len(matriz)):
+        for col in range(len(matriz[fila])):
+            if matriz[fila][col] == 1:
+                pygame.draw.rect(
+                    ventana,
+                    (255, 0, 0),
+                    (x + col * tamaño, y + fila * tamaño, tamaño, tamaño)
+                )
+
+
+def dibujar_barra_velocidad(velocidad):
+    x_inicio = 40
+    y_inicio = 540
+    ancho = 14
+    alto = 22
+    separacion = 3
+
+    total = 20
+    activos = int((velocidad / velocidad_max) * total)
+
+    for i in range(total):
+        x = x_inicio + i * (ancho + separacion)
+
+        if i < 7:
+            color = (0, 255, 0)
+        elif i < 14:
+            color = (255, 255, 0)
+        else:
+            color = (255, 0, 0)
+
+        if i >= activos:
+            color = (40, 40, 40)
+
+        pygame.draw.rect(ventana, color, (x, y_inicio, ancho, alto))
+
+
+def dibujar_hud_velocidad():
+    pygame.draw.rect(ventana, (0, 0, 0), (30, 520, 420, 65))
+
+    dibujar_barra_velocidad(velocidad_auto)
+
+    texto = str(int(velocidad_auto)).zfill(3)
+
+    x = 330
+    for digito in texto:
+        dibujar_numero_display(digito, x, 530, 8)
+        x += 32
 
 def dibujar_auto(progreso):
     auto_ancho = int(45 + progreso * 85)
@@ -206,7 +273,7 @@ def dibujar_pista_textura(progreso):
     if fase_carrera == "intro":
         offset_pista -= 6
     elif fase_carrera == "carrera":
-        offset_pista -= velocidad_auto
+        offset_pista -= velocidad_auto * 0.50
 
     dibujar_fondo_carrera()
 
@@ -217,8 +284,8 @@ def dibujar_pista_textura(progreso):
         t1 = i / segmentos
         t2 = (i + 1) / segmentos
 
-        y1 = int(horizonte_y + (t1 ** 1.0) * (ALTO - horizonte_y))
-        y2 = int(horizonte_y + (t2 ** 1.0) * (ALTO - horizonte_y))
+        y1 = int(horizonte_y + t1 * (ALTO - horizonte_y))
+        y2 = int(horizonte_y + t2 * (ALTO - horizonte_y))
 
         if y2 <= y1:
             continue
@@ -233,7 +300,15 @@ def dibujar_pista_textura(progreso):
         textura_w = road_texture.get_width()
 
         slice_h = 2
-        slice_y = int((offset_pista + i * slice_h) % (textura_h - slice_h))
+
+        # perspectiva correcta:
+        # arriba = más comprimido
+        # abajo = más estirado
+        profundidad = t1
+        textura_pos = offset_pista + (profundidad * profundidad * textura_h)
+
+        slice_y = int(textura_pos) % (textura_h - slice_h)
+
         road_slice = road_texture.subsurface((0, slice_y, textura_w, slice_h))
         road_slice = pygame.transform.smoothscale(road_slice, (ancho2, y2 - y1))
 
@@ -498,19 +573,26 @@ while True:
     # =========================
     if estado == "juego_final":
 
+        dt = reloj.get_time() / 1000
+
         if fase_carrera == "carrera":
             teclas = pygame.key.get_pressed()
 
             if teclas[pygame.K_SPACE]:
-                velocidad_auto += 0.25
-                if velocidad_auto > 35:
-                    velocidad_auto = 35
+                velocidad_auto += aceleracion * dt
+
+                if velocidad_auto > velocidad_max:
+                    velocidad_auto = velocidad_max
             else:
-                velocidad_auto -= 0.12
+                velocidad_auto -= aceleracion * dt * 0.5
+
                 if velocidad_auto < 0:
                     velocidad_auto = 0
 
         dibujar_intro_carrera()
+
+        if fase_carrera == "carrera":
+            dibujar_hud_velocidad()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
