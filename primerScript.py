@@ -273,7 +273,7 @@ def dibujar_pista_textura(progreso):
     if fase_carrera == "intro":
         offset_pista -= 6
     elif fase_carrera == "carrera":
-        offset_pista -= velocidad_auto * 0.50
+        offset_pista -= velocidad_auto * 0.10
 
     dibujar_fondo_carrera()
 
