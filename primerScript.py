@@ -42,6 +42,8 @@ tiempo_inicio_conteo = None
 conteo_terminado = False
 fase_carrera = "intro"
 
+
+
 def dibujar_numero_display(numero, x, y, tamaño=8):
     matriz = numeros[str(numero)]
 
@@ -82,22 +84,60 @@ def dibujar_barra_velocidad(velocidad):
 
 
 def dibujar_hud_velocidad():
-    pygame.draw.rect(ventana, (0, 0, 0), (30, 520, 420, 65))
 
-    dibujar_barra_velocidad(velocidad_auto)
+    panel_x = 500
+    panel_y = 20
 
+    pygame.draw.rect(ventana, (0, 0, 0), (panel_x, panel_y, 260, 65))
+
+    # barra velocidad
+    x_inicio = panel_x + 10
+    y_inicio = panel_y + 12
+
+    ancho = 8
+    alto = 18
+    separacion = 2
+
+    total = 20
+    activos = int((velocidad_auto / velocidad_max) * total)
+
+    for i in range(total):
+        x = x_inicio + i * (ancho + separacion)
+
+        if i < 7:
+            color = (0, 255, 0)
+        elif i < 14:
+            color = (255, 255, 0)
+        else:
+            color = (255, 0, 0)
+
+        if i >= activos:
+            color = (40, 40, 40)
+
+        pygame.draw.rect(ventana, color, (x, y_inicio, ancho, alto))
+
+    # números
     texto = str(int(velocidad_auto)).zfill(3)
 
-    x = 330
+    x_num = panel_x + 150
+    y_num = panel_y + 35
+
     for digito in texto:
-        dibujar_numero_display(digito, x, 530, 8)
-        x += 32
+        dibujar_numero_display(digito, x_num, y_num, 5)
+        x_num += 22
 
 def dibujar_auto(progreso):
     auto_ancho = int(45 + progreso * 85)
     auto_alto = int(28 + progreso * 52)
 
-    auto = pygame.transform.scale(auto_jugador, (auto_ancho, auto_alto))
+    if imagen_auto_actual == "izquierda":
+        imagen = auto_izquierda
+    elif imagen_auto_actual == "derecha":
+        imagen = auto_derecha
+    else:
+        imagen = auto_jugador
+
+    auto = pygame.transform.scale(imagen, (auto_ancho, auto_alto))
 
     auto_x = ANCHO // 2 - auto_ancho // 2
     auto_y = int(300 + progreso * 130)
@@ -219,6 +259,10 @@ pantalla_carga = cargar_imagen("images/topgear/img_12.png", (ANCHO, ALTO))
 road_texture = cargar_imagen("images/topgear/auto/road2.png")
 auto_jugador = cargar_imagen("images/topgear/auto/img.png", alpha=True)
 
+auto_izquierda = cargar_imagen("images/topgear/auto/img_1.png", alpha=True)
+auto_derecha = cargar_imagen("images/topgear/auto/img_2.png", alpha=True)
+desplazamiento_pista = 0
+imagen_auto_actual = "centro"
 
 # =========================
 # VARIABLES INTRO CARRERA
@@ -277,8 +321,8 @@ def dibujar_pista_textura(progreso):
 
     dibujar_fondo_carrera()
 
-    horizonte_y = 260
-    segmentos = 180
+    horizonte_y = 300
+    segmentos = 1000
 
     for i in range(segmentos):
         t1 = i / segmentos
@@ -290,22 +334,25 @@ def dibujar_pista_textura(progreso):
         if y2 <= y1:
             continue
 
-        ancho1 = int(120 + t1 * 2500)
-        ancho2 = int(120 + t2 * 2500)
+        ancho1 = int(10 + t1 * 2500)
+        ancho2 = int(10 + t2 * 2500)
 
-        x1 = ANCHO // 2 - ancho1 // 2
-        x2 = ANCHO // 2 - ancho2 // 2
+        x1 = ANCHO // 2 - ancho1 // 2 + int(desplazamiento_pista * t1)
+        x2 = ANCHO // 2 - ancho2 // 2 + int(desplazamiento_pista * t2)
 
         textura_h = road_texture.get_height()
         textura_w = road_texture.get_width()
 
-        slice_h = 2
+        # arriba toma pedazo pequeño, abajo toma pedazo más grande
+        slice_h = 3
 
-        # perspectiva correcta:
-        # arriba = más comprimido
-        # abajo = más estirado
-        profundidad = t1
-        textura_pos = offset_pista + (profundidad * profundidad * textura_h)
+        profundidad = min(1.0, t1 * 1.8)
+
+        # controla cuántas veces se repite la textura
+        # más alto = menos imágenes pegadas
+        escala_textura = 160
+
+        textura_pos = (offset_pista * profundidad) + (i / segmentos) * escala_textura
 
         slice_y = int(textura_pos) % (textura_h - slice_h)
 
@@ -328,6 +375,7 @@ def dibujar_pista_textura(progreso):
         temp.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
         ventana.blit(temp, (0, y1))
+
 
 
 def dibujar_meta_y_auto(progreso):
@@ -577,6 +625,27 @@ while True:
 
         if fase_carrera == "carrera":
             teclas = pygame.key.get_pressed()
+            if teclas[pygame.K_d]:
+                desplazamiento_pista -= 12
+                imagen_auto_actual = "derecha"
+            elif teclas[pygame.K_a]:
+                desplazamiento_pista += 12
+                imagen_auto_actual = "izquierda"
+            else:
+                imagen_auto_actual = "centro"
+
+            fuerza_giro = 4 + (velocidad_auto * 0.05)
+            desplazamiento_pista = max(-500, min(500, desplazamiento_pista))
+            if teclas[pygame.K_d]:
+                desplazamiento_pista -= fuerza_giro
+                imagen_auto_actual = "derecha"
+
+            elif teclas[pygame.K_a]:
+                desplazamiento_pista += fuerza_giro
+                imagen_auto_actual = "izquierda"
+
+            else:
+                imagen_auto_actual = "centro"
 
             if teclas[pygame.K_SPACE]:
                 velocidad_auto += aceleracion * dt
