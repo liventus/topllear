@@ -2,12 +2,15 @@ import pygame
 import sys
 import math
 
+global velocidad_auto
 pygame.init()
 pygame.mixer.init()
 
 ANCHO = 800
 ALTO = 600
 FPS = 60
+
+tiempo_inicio_conteo = None
 
 ventana = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("TOPLLEAR")
@@ -18,14 +21,18 @@ velocidad_auto = 0
 # movimiento lateral de pista
 curva_pista = 0
 
-def dibujar_auto():
-    auto_ancho = 130
-    auto_alto = 80
+tiempo_inicio_conteo = None
+conteo_terminado = False
+velocidad_auto = 0
+
+def dibujar_auto(progreso):
+    auto_ancho = int(45 + progreso * 85)
+    auto_alto = int(28 + progreso * 52)
 
     auto = pygame.transform.scale(auto_jugador, (auto_ancho, auto_alto))
 
     auto_x = ANCHO // 2 - auto_ancho // 2
-    auto_y = 430
+    auto_y = int(300 + progreso * 130)
 
     ventana.blit(auto, (auto_x, auto_y))
 
@@ -157,9 +164,14 @@ offset_pista = 0
 
 def reiniciar_intro_carrera():
     global distancia_meta, intro_carrera_terminada, offset_pista
+    global tiempo_inicio_conteo, conteo_terminado, velocidad_auto
+
     distancia_meta = 200
     intro_carrera_terminada = False
     offset_pista = 0
+    tiempo_inicio_conteo = None
+    conteo_terminado = False
+    velocidad_auto = 0
 
 
 def dibujar_fondo_carrera():
@@ -189,13 +201,15 @@ def dibujar_fondo_carrera():
 def dibujar_pista_textura(progreso):
     global offset_pista
 
-    if not intro_carrera_terminada:
+    if not conteo_terminado:
         offset_pista += 6
+    else:
+        offset_pista += velocidad_auto
 
     dibujar_fondo_carrera()
 
     horizonte_y = 260
-    segmentos = 50
+    segmentos = 180
 
     for i in range(segmentos):
         t1 = i / segmentos
@@ -207,8 +221,8 @@ def dibujar_pista_textura(progreso):
         if y2 <= y1:
             continue
 
-        ancho1 = int(180 + t1 * 260)
-        ancho2 = int(180 + t2 * 260)
+        ancho1 = int(120 + t1 * 2500)
+        ancho2 = int(120 + t2 * 2500)
 
         x1 = ANCHO // 2 - ancho1 // 2
         x2 = ANCHO // 2 - ancho2 // 2
@@ -216,9 +230,10 @@ def dibujar_pista_textura(progreso):
         textura_h = road_texture.get_height()
         textura_w = road_texture.get_width()
 
-        slice_y = int((offset_pista + i * 6) % textura_h)
-        road_slice = road_texture.subsurface((0, slice_y, textura_w, 1))
-        road_slice = pygame.transform.scale(road_slice, (ancho2, y2 - y1))
+        slice_h = 2
+        slice_y = int((offset_pista + i * slice_h) % (textura_h - slice_h))
+        road_slice = road_texture.subsurface((0, slice_y, textura_w, slice_h))
+        road_slice = pygame.transform.smoothscale(road_slice, (ancho2, y2 - y1))
 
         mascara = pygame.Surface((ANCHO, y2 - y1), pygame.SRCALPHA)
 
@@ -295,7 +310,8 @@ def dibujar_meta_y_auto(progreso):
 
 
 def dibujar_intro_carrera():
-    global distancia_meta, intro_carrera_terminada
+
+    global distancia_meta, intro_carrera_terminada, tiempo_inicio_conteo, conteo_terminado
 
     if not intro_carrera_terminada:
         distancia_meta -= velocidad_intro
@@ -303,11 +319,12 @@ def dibujar_intro_carrera():
         if distancia_meta <= 0:
             distancia_meta = 0
             intro_carrera_terminada = True
+            tiempo_inicio_conteo = pygame.time.get_ticks()
 
     progreso = 1 - (distancia_meta / 200)
 
     dibujar_pista_textura(progreso)
-    dibujar_auto()
+    dibujar_auto(progreso)
 
     fuente = pygame.font.SysFont("arial", 30, bold=True)
 
@@ -317,13 +334,29 @@ def dibujar_intro_carrera():
     ventana.blit(sombra, (32, 32))
     ventana.blit(texto, (30, 30))
 
-    if intro_carrera_terminada:
-        texto2 = fuente.render("EN META - ESPERANDO CONTEO", True, (255, 255, 255))
-        sombra2 = fuente.render("EN META - ESPERANDO CONTEO", True, (0, 0, 0))
+    if intro_carrera_terminada and not conteo_terminado:
+        tiempo_pasado = pygame.time.get_ticks() - tiempo_inicio_conteo
 
-        x = ANCHO // 2 - texto2.get_width() // 2
-        ventana.blit(sombra2, (x + 2, 542))
-        ventana.blit(texto2, (x, 540))
+        if tiempo_pasado < 1000:
+            numero = "3"
+        elif tiempo_pasado < 2000:
+            numero = "2"
+        elif tiempo_pasado < 3000:
+            numero = "1"
+        else:
+            numero = ""
+            conteo_terminado = True
+
+        if numero != "":
+            fuente_conteo = pygame.font.SysFont("arial", 90, bold=True)
+            texto2 = fuente_conteo.render(numero, True, (255, 255, 255))
+            sombra2 = fuente_conteo.render(numero, True, (0, 0, 0))
+
+            x = ANCHO // 2 - texto2.get_width() // 2
+            y = 250
+
+            ventana.blit(sombra2, (x + 4, y + 4))
+            ventana.blit(texto2, (x, y))
 
 
 # =========================
@@ -460,6 +493,21 @@ while True:
     # INTRO CARRERA
     # =========================
     if estado == "juego_final":
+
+        if conteo_terminado:
+            teclas = pygame.key.get_pressed()
+
+            if teclas[pygame.K_SPACE]:
+                velocidad_auto += 0.25
+
+                if velocidad_auto > 35:
+                    velocidad_auto = 35
+            else:
+                velocidad_auto -= 0.12
+
+                if velocidad_auto < 0:
+                    velocidad_auto = 0
+
         dibujar_intro_carrera()
 
         for event in pygame.event.get():
