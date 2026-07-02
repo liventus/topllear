@@ -3,6 +3,25 @@ import sys
 import math
 
 
+mapa_curvas = [
+    {"desde": 0,   "hasta": 150, "curva": 0},
+    {"desde": 150, "hasta": 300, "curva": 180},
+    {"desde": 300, "hasta": 400, "curva": 0},
+    {"desde": 400, "hasta": 550, "curva": -180},
+    {"desde": 550, "hasta": 100000, "curva": 0}
+]
+
+distancia_recorrida = 0
+curva_actual = 0
+
+
+def obtener_curva_por_distancia(distancia):
+    for tramo in mapa_curvas:
+        if tramo["desde"] <= distancia < tramo["hasta"]:
+            return tramo["curva"]
+    return 0
+
+
 numeros = {
     "0": [[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
     "1": [[0,0,1],[0,0,1],[0,0,1],[0,0,1],[0,0,1]],
@@ -278,6 +297,9 @@ def reiniciar_intro_carrera():
     global distancia_meta, intro_carrera_terminada, offset_pista
     global tiempo_inicio_conteo, conteo_terminado, velocidad_auto
     global fase_carrera
+    global distancia_recorrida, curva_actual
+    distancia_recorrida = 0
+    curva_actual = 0
 
     distancia_meta = 200
     intro_carrera_terminada = False
@@ -337,8 +359,11 @@ def dibujar_pista_textura(progreso):
         ancho1 = int(10 + t1 * 2500)
         ancho2 = int(10 + t2 * 2500)
 
-        x1 = ANCHO // 2 - ancho1 // 2 + int(desplazamiento_pista * t1)
-        x2 = ANCHO // 2 - ancho2 // 2 + int(desplazamiento_pista * t2)
+        curva1 = curva_actual * (t1 ** 2)
+        curva2 = curva_actual * (t2 ** 2)
+
+        x1 = ANCHO // 2 - ancho1 // 2 + int(desplazamiento_pista * t1) + int(curva1)
+        x2 = ANCHO // 2 - ancho2 // 2 + int(desplazamiento_pista * t2) + int(curva2)
 
         textura_h = road_texture.get_height()
         textura_w = road_texture.get_width()
@@ -624,6 +649,9 @@ while True:
         dt = reloj.get_time() / 1000
 
         if fase_carrera == "carrera":
+            FACTOR_DISTANCIA = 0.15
+            distancia_recorrida += velocidad_auto * dt * FACTOR_DISTANCIA
+            curva_actual = obtener_curva_por_distancia(distancia_recorrida)
             teclas = pygame.key.get_pressed()
             if teclas[pygame.K_d]:
                 desplazamiento_pista -= 12
