@@ -64,7 +64,7 @@ def cargar_imagen(ruta, size=None, alpha=False):
 # CLASE JUGADOR
 # =========================
 class Jugador:
-    def __init__(self, nombre, izquierda, derecha, acelerar, frenar=None):
+    def __init__(self, nombre, izquierda, derecha, acelerar, frenar=None, carril_inicial=0):
         self.nombre = nombre
         self.izquierda = izquierda
         self.derecha = derecha
@@ -77,9 +77,9 @@ class Jugador:
         # Mueve la pista/cámara propia de este jugador
         self.desplazamiento_pista = 0
 
-        # Carril real del auto en la pista.
-        # -1 izquierda, 0 centro, +1 derecha
-        self.carril = 0.0
+        # Carril inicial y carril actual
+        self.carril_inicial = carril_inicial
+        self.carril = carril_inicial
 
         self.offset_pista = 0
         self.imagen_actual = "centro"
@@ -89,14 +89,29 @@ class Jugador:
         self.velocidad = 0
         self.distancia = 0
         self.desplazamiento_pista = 0
-        self.carril = 0.0
+        self.carril = self.carril_inicial
         self.offset_pista = 0
         self.imagen_actual = "centro"
         self.posicion = 1
 
 
-jugador1 = Jugador("JUGADOR 1", pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_s)
-jugador2 = Jugador("JUGADOR 2", pygame.K_j, pygame.K_l, pygame.K_i, pygame.K_k)
+jugador1 = Jugador(
+    "JUGADOR 1",
+    pygame.K_a,
+    pygame.K_d,
+    pygame.K_w,
+    pygame.K_s,
+    carril_inicial=-0.45
+)
+
+jugador2 = Jugador(
+    "JUGADOR 2",
+    pygame.K_j,
+    pygame.K_l,
+    pygame.K_i,
+    pygame.K_k,
+    carril_inicial=0.45
+)
 
 # =========================
 # CARGA DE IMÁGENES
@@ -317,9 +332,23 @@ def obtener_imagen_auto(jugador):
 def dibujar_auto_jugador(superficie, jugador):
     auto_ancho = 100
     auto_alto = 60
-    imagen = pygame.transform.scale(obtener_imagen_auto(jugador), (auto_ancho, auto_alto))
-    auto_x = superficie.get_width() // 2 - auto_ancho // 2
+
+    imagen = pygame.transform.scale(
+        obtener_imagen_auto(jugador),
+        (auto_ancho, auto_alto)
+    )
+
+    centro_pista = superficie.get_width() // 2
+    separacion = 170
+
+    auto_x = (
+        centro_pista
+        - auto_ancho // 2
+        + int(jugador.carril * separacion)
+    )
+
     auto_y = superficie.get_height() - auto_alto - 15
+
     superficie.blit(imagen, (auto_x, auto_y))
 
 
@@ -419,11 +448,22 @@ def actualizar_posiciones():
 def dibujar_auto_oponente(superficie, jugador_vista, oponente):
     diferencia = oponente.distancia - jugador_vista.distancia
 
-    # Solo ves al rival si está adelante.
-    if diferencia <= 2:
+    # =====================================================
+    # REGLA CORRECTA:
+    # - Si el rival está detrás, NO se ve.
+    # - Si están casi al mismo nivel, SÍ se ve y del mismo tamaño.
+    # - Si el rival está adelante, se ve más pequeño según distancia.
+    # =====================================================
+
+    tolerancia_mismo_nivel = 1.0
+
+    # Rival detrás: no debe verse.
+    if diferencia < -tolerancia_mismo_nivel:
         return
 
     distancia_visible_max = 55
+
+    # Rival demasiado adelante: ya no se ve.
     if diferencia > distancia_visible_max:
         return
 
@@ -431,23 +471,33 @@ def dibujar_auto_oponente(superficie, jugador_vista, oponente):
     alto = superficie.get_height()
 
     horizonte_y = 125
-    y_cerca = alto - 95
 
-    progreso = diferencia / distancia_visible_max
+    # Misma posición vertical que el auto del jugador.
+    auto_jugador_ancho = 100
+    auto_jugador_alto = 60
+    y_mismo_nivel = alto - auto_jugador_alto - 15
+
+    # Si están casi iguales, lo tratamos como empate visual.
+    if abs(diferencia) <= tolerancia_mismo_nivel:
+        progreso = 0
+    else:
+        progreso = diferencia / distancia_visible_max
+
+    progreso = max(0.0, min(1.0, progreso))
 
     # Cerca abajo, lejos arriba.
-    auto_y = int(y_cerca - progreso * (y_cerca - horizonte_y))
+    auto_y = int(y_mismo_nivel - progreso * (y_mismo_nivel - horizonte_y))
 
-    # Profundidad visual: 0 horizonte, 1 cerca.
+    # Profundidad visual.
     t = (auto_y - horizonte_y) / (alto - horizonte_y)
     t = max(0.0, min(1.0, t))
 
-    # Tamaño con perspectiva.
+    # Si están al mismo nivel, el rival tiene el MISMO tamaño.
     escala = 1.0 - progreso * 0.75
     escala = max(0.20, min(1.0, escala))
 
-    auto_ancho = int(80 * escala)
-    auto_alto = int(48 * escala)
+    auto_ancho = int(auto_jugador_ancho * escala)
+    auto_alto = int(auto_jugador_alto * escala)
 
     if auto_ancho <= 10 or auto_alto <= 8:
         return
@@ -457,32 +507,24 @@ def dibujar_auto_oponente(superficie, jugador_vista, oponente):
         (auto_ancho, auto_alto)
     )
 
-    # =====================================================
-    # REFLEJO AMARRADO A LA PISTA DEL JUGADOR QUE MIRA
-    # =====================================================
-    # Si jugador_vista mueve su pista/cámara, el reflejo se mueve junto con la pista.
-    # Pero el carril real del reflejo depende SOLO del oponente.
-    #
-    # Ejemplo:
-    # jugador1 está adelante sin moverse.
-    # jugador2 se mueve a la derecha.
-    # En la pantalla de jugador2, jugador1 se mueve junto con la pista/cámara.
-
     curva_actual = obtener_curva_por_distancia(jugador_vista.distancia)
 
-    # Centro visual de la pista en esta profundidad.
-    # IMPORTANTE: usamos jugador_vista.desplazamiento_pista para que el reflejo
-    # se mueva junto con la pista visible de esa pantalla.
+    # Centro visual de la pista según la cámara del jugador que mira.
     centro_pista_x = ancho // 2
     centro_pista_x += int(jugador_vista.desplazamiento_pista * t)
     centro_pista_x += int(curva_actual * (t ** 2))
 
-    # Carril real del oponente.
+    # El carril del rival depende SOLO del rival.
     carril_rival = oponente.carril
 
-    # Ancho visible de la pista según profundidad.
-    ancho_pista_visible = 80 + (t ** 1.45) * 620
-    limite_lateral = ancho_pista_visible * 0.45
+    # Separación lateral.
+    if progreso == 0:
+        # Cuando están juntos en la salida/meta, usa misma separación que el jugador.
+        limite_lateral = 170
+    else:
+        # Cuando está adelante, aplica perspectiva.
+        ancho_pista_visible = 80 + (t ** 1.45) * 620
+        limite_lateral = ancho_pista_visible * 0.45
 
     auto_x = centro_pista_x - auto_ancho // 2
     auto_x += int(carril_rival * limite_lateral)
