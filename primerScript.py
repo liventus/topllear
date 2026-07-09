@@ -1,6 +1,42 @@
 import pygame
 import sys
-import math
+
+
+pygame.init()
+pygame.mixer.init()
+
+ANCHO = 800
+ALTO = 600
+ALTO_PANTALLA = ALTO // 2
+FPS = 60
+
+ventana = pygame.display.set_mode((ANCHO, ALTO))
+pygame.display.set_caption("TOPLLEAR - 2 JUGADORES")
+reloj = pygame.time.Clock()
+
+velocidad_max = 200
+aceleracion = velocidad_max / 5
+FACTOR_DISTANCIA = 0.15
+
+# =========================
+# MAPA DE CURVAS
+# curva positiva = curva hacia la derecha visual
+# curva negativa = curva hacia la izquierda visual
+# =========================
+mapa_curvas = [
+    {"desde": 0,   "hasta": 150, "curva": 0},
+    {"desde": 150, "hasta": 300, "curva": 180},
+    {"desde": 300, "hasta": 400, "curva": 0},
+    {"desde": 400, "hasta": 550, "curva": -180},
+    {"desde": 550, "hasta": 100000, "curva": 0}
+]
+
+
+def obtener_curva_por_distancia(distancia):
+    for tramo in mapa_curvas:
+        if tramo["desde"] <= distancia < tramo["hasta"]:
+            return tramo["curva"]
+    return 0
 
 
 numeros = {
@@ -15,134 +51,7 @@ numeros = {
     "8": [[1,1,1],[1,0,1],[1,1,1],[1,0,1],[1,1,1]],
     "9": [[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]]
 }
-global velocidad_auto
-pygame.init()
-pygame.mixer.init()
 
-velocidad_auto = 0
-velocidad_max = 200
-aceleracion = velocidad_max / 5
-
-ANCHO = 800
-ALTO = 600
-FPS = 60
-
-tiempo_inicio_conteo = None
-
-ventana = pygame.display.set_mode((ANCHO, ALTO))
-pygame.display.set_caption("TOPLLEAR")
-reloj = pygame.time.Clock()
-# velocidad del auto
-
-
-# movimiento lateral de pista
-curva_pista = 0
-
-tiempo_inicio_conteo = None
-conteo_terminado = False
-fase_carrera = "intro"
-
-
-
-def dibujar_numero_display(numero, x, y, tamaño=8):
-    matriz = numeros[str(numero)]
-
-    for fila in range(len(matriz)):
-        for col in range(len(matriz[fila])):
-            if matriz[fila][col] == 1:
-                pygame.draw.rect(
-                    ventana,
-                    (255, 0, 0),
-                    (x + col * tamaño, y + fila * tamaño, tamaño, tamaño)
-                )
-
-
-def dibujar_barra_velocidad(velocidad):
-    x_inicio = 40
-    y_inicio = 540
-    ancho = 14
-    alto = 22
-    separacion = 3
-
-    total = 20
-    activos = int((velocidad / velocidad_max) * total)
-
-    for i in range(total):
-        x = x_inicio + i * (ancho + separacion)
-
-        if i < 7:
-            color = (0, 255, 0)
-        elif i < 14:
-            color = (255, 255, 0)
-        else:
-            color = (255, 0, 0)
-
-        if i >= activos:
-            color = (40, 40, 40)
-
-        pygame.draw.rect(ventana, color, (x, y_inicio, ancho, alto))
-
-
-def dibujar_hud_velocidad():
-
-    panel_x = 500
-    panel_y = 20
-
-    pygame.draw.rect(ventana, (0, 0, 0), (panel_x, panel_y, 260, 65))
-
-    # barra velocidad
-    x_inicio = panel_x + 10
-    y_inicio = panel_y + 12
-
-    ancho = 8
-    alto = 18
-    separacion = 2
-
-    total = 20
-    activos = int((velocidad_auto / velocidad_max) * total)
-
-    for i in range(total):
-        x = x_inicio + i * (ancho + separacion)
-
-        if i < 7:
-            color = (0, 255, 0)
-        elif i < 14:
-            color = (255, 255, 0)
-        else:
-            color = (255, 0, 0)
-
-        if i >= activos:
-            color = (40, 40, 40)
-
-        pygame.draw.rect(ventana, color, (x, y_inicio, ancho, alto))
-
-    # números
-    texto = str(int(velocidad_auto)).zfill(3)
-
-    x_num = panel_x + 150
-    y_num = panel_y + 35
-
-    for digito in texto:
-        dibujar_numero_display(digito, x_num, y_num, 5)
-        x_num += 22
-
-def dibujar_auto(progreso):
-    auto_ancho = int(45 + progreso * 85)
-    auto_alto = int(28 + progreso * 52)
-
-    if imagen_auto_actual == "izquierda":
-        imagen = auto_izquierda
-    elif imagen_auto_actual == "derecha":
-        imagen = auto_derecha
-    else:
-        imagen = auto_jugador
-
-    auto = pygame.transform.scale(imagen, (auto_ancho, auto_alto))
-
-    auto_x = ANCHO // 2 - auto_ancho // 2
-    auto_y = int(300 + progreso * 130)
-
-    ventana.blit(auto, (auto_x, auto_y))
 
 def cargar_imagen(ruta, size=None, alpha=False):
     img = pygame.image.load(ruta).convert_alpha() if alpha else pygame.image.load(ruta).convert()
@@ -152,20 +61,115 @@ def cargar_imagen(ruta, size=None, alpha=False):
 
 
 # =========================
-# INTRO 1
+# CLASE JUGADOR
 # =========================
+class Jugador:
+    def __init__(self, nombre, izquierda, derecha, acelerar, frenar=None, carril_inicial=0):
+        self.nombre = nombre
+        self.izquierda = izquierda
+        self.derecha = derecha
+        self.acelerar = acelerar
+        self.frenar = frenar
 
+        self.velocidad = 0
+        self.distancia = 0
+
+        # Mueve la pista/cámara propia de este jugador
+        self.desplazamiento_pista = 0
+
+        # Carril inicial y carril actual
+        self.carril_inicial = carril_inicial
+        self.carril = carril_inicial
+
+        self.offset_pista = 0
+        self.imagen_actual = "centro"
+        self.posicion = 1
+
+    def reiniciar(self):
+        self.velocidad = 0
+        self.distancia = 0
+        self.desplazamiento_pista = 0
+        self.carril = self.carril_inicial
+        self.offset_pista = 0
+        self.imagen_actual = "centro"
+        self.posicion = 1
+
+
+jugador1 = Jugador(
+    "JUGADOR 1",
+    pygame.K_a,
+    pygame.K_d,
+    pygame.K_w,
+    pygame.K_s,
+    carril_inicial=-0.45
+)
+
+jugador2 = Jugador(
+    "JUGADOR 2",
+    pygame.K_j,
+    pygame.K_l,
+    pygame.K_i,
+    pygame.K_k,
+    carril_inicial=0.45
+)
+
+# =========================
+# CARGA DE IMÁGENES
+# =========================
 imagen_inicio = cargar_imagen("images/topgear/intro.png", (ANCHO, ALTO))
 imagen_inicio2 = cargar_imagen("images/topgear/img.png", (130, 30))
 
-pygame.mixer.music.load("images/sonido/intro.mp3")
-pygame.mixer.music.play(-1)
+fondo = cargar_imagen("images/topgear/img_5.png", (ANCHO, ALTO))
+titulo = cargar_imagen("images/topgear/top.png", (400, 150), True)
+gear = cargar_imagen("images/topgear/gear.png", (400, 150), True)
+
+menu_img_6 = cargar_imagen("images/topgear/img_6.png", (ANCHO, ALTO))
+menu_img_7 = cargar_imagen("images/topgear/img_7.png", (ANCHO, ALTO))
+sub_menu = cargar_imagen("images/topgear/img_9.png", (ANCHO, ALTO))
+pantalla_carrera = cargar_imagen("images/topgear/mapa.png", (ANCHO, ALTO))
+pantalla_carga = cargar_imagen("images/topgear/img_12.png", (ANCHO, ALTO))
+
+road_texture = cargar_imagen("images/topgear/auto/road2.png")
+auto_jugador = cargar_imagen("images/topgear/auto/img.png", alpha=True)
+auto_izquierda = cargar_imagen("images/topgear/auto/img_1.png", alpha=True)
+auto_derecha = cargar_imagen("images/topgear/auto/img_2.png", alpha=True)
+
+# =========================
+# VARIABLES DE ESTADO
+# =========================
+tiempo_inicio_conteo = None
+conteo_terminado = False
+fase_carrera = "intro"
+distancia_meta = 200
+velocidad_intro = 0.75
+musica_juego_iniciada = False
+
+# menú
+angulo = 360
+angulo_gear = 360
+mostrar_press_start = False
+tiempo_final_titulo = None
+y_titulo = -10
+y_final = 140
+y_gear = 650
+y_gearfinal = 230
+velocidad_menu = 5
+escala = 0.001
+escala_final = 1.0
+velocidad_escala = 0.01
+mostrar_gear = False
+delay_gear = 1000
+tiempo_estado = 0
+estado = "intro_menu"
+opcion_menu = "img_6"
 
 
+# =========================
+# FUNCIONES INTRO INICIAL
+# =========================
 def fade_in():
     oscuridad = pygame.Surface((ANCHO, ALTO))
     oscuridad.fill((0, 0, 0))
-
     for alpha in range(255, -1, -5):
         ventana.blit(imagen_inicio, (0, 0))
         oscuridad.set_alpha(alpha)
@@ -177,7 +181,6 @@ def fade_in():
 def fade_out():
     oscuridad = pygame.Surface((ANCHO, ALTO))
     oscuridad.fill((0, 0, 0))
-
     for alpha in range(0, 256, 5):
         ventana.blit(imagen_inicio, (0, 0))
         oscuridad.set_alpha(alpha)
@@ -186,27 +189,436 @@ def fade_out():
         reloj.tick(FPS)
 
 
-fade_in()
+# =========================
+# HUD
+# =========================
+def dibujar_numero_display(superficie, numero, x, y, tam=5, color=(255, 0, 0)):
+    matriz = numeros[str(numero)]
+    for fila in range(len(matriz)):
+        for col in range(len(matriz[fila])):
+            if matriz[fila][col] == 1:
+                pygame.draw.rect(superficie, color, (x + col * tam, y + fila * tam, tam, tam))
 
+
+def dibujar_hud_jugador(superficie, jugador):
+    fuente = pygame.font.SysFont("arial", 18, bold=True)
+    texto = fuente.render(f"{jugador.nombre}   POS {jugador.posicion}", True, (255, 255, 255))
+    sombra = fuente.render(f"{jugador.nombre}   POS {jugador.posicion}", True, (0, 0, 0))
+    superficie.blit(sombra, (17, 12))
+    superficie.blit(texto, (15, 10))
+
+    panel_x = 520
+    panel_y = 12
+    pygame.draw.rect(superficie, (0, 0, 0), (panel_x, panel_y, 250, 52))
+
+    total = 20
+    activos = int((jugador.velocidad / velocidad_max) * total)
+    x_inicio = panel_x + 8
+    y_inicio = panel_y + 10
+    ancho = 8
+    alto = 15
+    separacion = 2
+
+    for i in range(total):
+        x = x_inicio + i * (ancho + separacion)
+        if i < 7:
+            color = (0, 255, 0)
+        elif i < 14:
+            color = (255, 255, 0)
+        else:
+            color = (255, 0, 0)
+        if i >= activos:
+            color = (40, 40, 40)
+        pygame.draw.rect(superficie, color, (x, y_inicio, ancho, alto))
+
+    texto_vel = str(int(jugador.velocidad)).zfill(3)
+    x_num = panel_x + 160
+    y_num = panel_y + 28
+    for digito in texto_vel:
+        dibujar_numero_display(superficie, digito, x_num, y_num, 4)
+        x_num += 18
+
+
+# =========================
+# DIBUJO DE PISTA EN UNA MITAD DE PANTALLA
+# =========================
+def dibujar_fondo_carrera(superficie):
+    ancho = superficie.get_width()
+    alto = superficie.get_height()
+
+    for y in range(0, 120):
+        r = 70 + int(y * 0.25)
+        g = 165 + int(y * 0.18)
+        b = 235
+        pygame.draw.line(superficie, (r, g, b), (0, y), (ancho, y))
+
+    pygame.draw.circle(superficie, (255, 225, 90), (665, 40), 30)
+    pygame.draw.circle(superficie, (255, 245, 160), (665, 40), 18)
+
+    pygame.draw.polygon(superficie, (150, 105, 80), [(0, 120), (130, 45), (285, 120)])
+    pygame.draw.polygon(superficie, (175, 125, 90), [(180, 120), (395, 35), (620, 120)])
+    pygame.draw.polygon(superficie, (140, 95, 70), [(510, 120), (690, 55), (850, 120)])
+
+    pygame.draw.rect(superficie, (210, 155, 90), (0, 120, ancho, alto))
+
+
+def dibujar_pista_textura(superficie, jugador):
+
+    if fase_carrera == "carrera":
+        # La pista se mueve SOLO según la velocidad del auto.
+        # Si velocidad = 0, la pista queda quieta.
+        jugador.offset_pista -= jugador.velocidad * 0.10
+
+    dibujar_fondo_carrera(superficie)
+
+    ancho = superficie.get_width()
+    alto = superficie.get_height()
+    horizonte_y = 125
+    segmentos = 420
+    curva_actual = obtener_curva_por_distancia(jugador.distancia)
+
+    for i in range(segmentos):
+        t1 = i / segmentos
+        t2 = (i + 1) / segmentos
+
+        y1 = int(horizonte_y + t1 * (alto - horizonte_y))
+        y2 = int(horizonte_y + t2 * (alto - horizonte_y))
+        if y2 <= y1:
+            continue
+
+        ancho1 = int(10 + t1 * 2300)
+        ancho2 = int(10 + t2 * 2300)
+
+        curva1 = curva_actual * (t1 ** 2)
+        curva2 = curva_actual * (t2 ** 2)
+
+        x1 = ancho // 2 - ancho1 // 2 + int(jugador.desplazamiento_pista * t1) + int(curva1)
+        x2 = ancho // 2 - ancho2 // 2 + int(jugador.desplazamiento_pista * t2) + int(curva2)
+
+        textura_h = road_texture.get_height()
+        textura_w = road_texture.get_width()
+        slice_h = 3
+        profundidad = min(1.0, t1 * 1.8)
+        escala_textura = 160
+        textura_pos = (jugador.offset_pista * profundidad) + (i / segmentos) * escala_textura
+        slice_y = int(textura_pos) % (textura_h - slice_h)
+
+        road_slice = road_texture.subsurface((0, slice_y, textura_w, slice_h))
+        road_slice = pygame.transform.smoothscale(road_slice, (ancho2, y2 - y1))
+
+        mascara = pygame.Surface((ancho, y2 - y1), pygame.SRCALPHA)
+        puntos = [
+            (x1, 0),
+            (x1 + ancho1, 0),
+            (x2 + ancho2, y2 - y1),
+            (x2, y2 - y1)
+        ]
+        pygame.draw.polygon(mascara, (255, 255, 255, 255), puntos)
+
+        temp = pygame.Surface((ancho, y2 - y1), pygame.SRCALPHA)
+        temp.blit(road_slice, (x2, 0))
+        temp.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        superficie.blit(temp, (0, y1))
+
+
+def obtener_imagen_auto(jugador):
+    if jugador.imagen_actual == "izquierda":
+        return auto_izquierda
+    if jugador.imagen_actual == "derecha":
+        return auto_derecha
+    return auto_jugador
+
+
+def dibujar_auto_jugador(superficie, jugador):
+    auto_ancho = 100
+    auto_alto = 60
+
+    imagen = pygame.transform.scale(
+        obtener_imagen_auto(jugador),
+        (auto_ancho, auto_alto)
+    )
+
+    centro_pista = superficie.get_width() // 2
+    separacion = 170
+
+    auto_x = (
+        centro_pista
+        - auto_ancho // 2
+        + int(jugador.carril * separacion)
+    )
+
+    auto_y = superficie.get_height() - auto_alto - 15
+
+    superficie.blit(imagen, (auto_x, auto_y))
+
+
+def dibujar_conteo(superficie):
+    global conteo_terminado, fase_carrera
+    tiempo_pasado = pygame.time.get_ticks() - tiempo_inicio_conteo
+
+    if tiempo_pasado < 1000:
+        numero = "3"
+    elif tiempo_pasado < 2000:
+        numero = "2"
+    elif tiempo_pasado < 3000:
+        numero = "1"
+    else:
+        numero = ""
+        conteo_terminado = True
+        fase_carrera = "carrera"
+
+    if numero != "":
+        fuente_conteo = pygame.font.SysFont("arial", 70, bold=True)
+        texto = fuente_conteo.render(numero, True, (255, 255, 255))
+        sombra = fuente_conteo.render(numero, True, (0, 0, 0))
+        x = superficie.get_width() // 2 - texto.get_width() // 2
+        y = superficie.get_height() // 2 - texto.get_height() // 2
+        superficie.blit(sombra, (x + 4, y + 4))
+        superficie.blit(texto, (x, y))
+
+
+# =========================
+# LÓGICA DE CARRERA
+# =========================
+def reiniciar_carrera():
+    global distancia_meta, tiempo_inicio_conteo, conteo_terminado, fase_carrera
+    distancia_meta = 0
+    conteo_terminado = False
+    fase_carrera = "conteo"
+    tiempo_inicio_conteo = pygame.time.get_ticks()
+    jugador1.reiniciar()
+    jugador2.reiniciar()
+
+
+def actualizar_jugador(jugador, teclas, dt):
+    if teclas[jugador.derecha]:
+        fuerza_giro = 4 + (jugador.velocidad * 0.05)
+
+        # La pista/cámara se mueve en su pantalla
+        jugador.desplazamiento_pista -= fuerza_giro
+
+        # Posición real del jugador en la pista
+        jugador.carril += 0.035 + jugador.velocidad * 0.00010
+
+        jugador.imagen_actual = "derecha"
+
+    elif teclas[jugador.izquierda]:
+        fuerza_giro = 4 + (jugador.velocidad * 0.05)
+
+        # La pista/cámara se mueve en su pantalla
+        jugador.desplazamiento_pista += fuerza_giro
+
+        # Posición real del jugador en la pista
+        jugador.carril -= 0.035 + jugador.velocidad * 0.00010
+
+        jugador.imagen_actual = "izquierda"
+
+    else:
+        jugador.imagen_actual = "centro"
+
+    jugador.desplazamiento_pista = max(-500, min(500, jugador.desplazamiento_pista))
+    jugador.carril = max(-1.0, min(1.0, jugador.carril))
+
+    if teclas[jugador.acelerar]:
+        jugador.velocidad += aceleracion * dt
+        if jugador.velocidad > velocidad_max:
+            jugador.velocidad = velocidad_max
+    else:
+        jugador.velocidad -= aceleracion * dt * 0.5
+
+    if jugador.frenar is not None and teclas[jugador.frenar]:
+        jugador.velocidad -= aceleracion * dt * 1.3
+
+    if jugador.velocidad < 0:
+        jugador.velocidad = 0
+
+    jugador.distancia += jugador.velocidad * dt * FACTOR_DISTANCIA
+
+
+def actualizar_posiciones():
+    if jugador1.distancia >= jugador2.distancia:
+        jugador1.posicion = 1
+        jugador2.posicion = 2
+    else:
+        jugador1.posicion = 2
+        jugador2.posicion = 1
+
+
+
+def dibujar_auto_oponente(superficie, jugador_vista, oponente):
+    diferencia = oponente.distancia - jugador_vista.distancia
+
+    # =====================================================
+    # REGLA CORRECTA:
+    # - Si el rival está detrás, NO se ve.
+    # - Si están casi al mismo nivel, SÍ se ve y del mismo tamaño.
+    # - Si el rival está adelante, se ve más pequeño según distancia.
+    # =====================================================
+
+    tolerancia_mismo_nivel = 1.0
+
+    # Rival detrás: no debe verse.
+    if diferencia < -tolerancia_mismo_nivel:
+        return
+
+    distancia_visible_max = 55
+
+    # Rival demasiado adelante: ya no se ve.
+    if diferencia > distancia_visible_max:
+        return
+
+    ancho = superficie.get_width()
+    alto = superficie.get_height()
+
+    horizonte_y = 125
+
+    # Misma posición vertical que el auto del jugador.
+    auto_jugador_ancho = 100
+    auto_jugador_alto = 60
+    y_mismo_nivel = alto - auto_jugador_alto - 15
+
+    # Si están casi iguales, lo tratamos como empate visual.
+    if abs(diferencia) <= tolerancia_mismo_nivel:
+        progreso = 0
+    else:
+        progreso = diferencia / distancia_visible_max
+
+    progreso = max(0.0, min(1.0, progreso))
+
+    # Cerca abajo, lejos arriba.
+    auto_y = int(y_mismo_nivel - progreso * (y_mismo_nivel - horizonte_y))
+
+    # Profundidad visual.
+    t = (auto_y - horizonte_y) / (alto - horizonte_y)
+    t = max(0.0, min(1.0, t))
+
+    # Si están al mismo nivel, el rival tiene el MISMO tamaño.
+    escala = 1.0 - progreso * 0.75
+    escala = max(0.20, min(1.0, escala))
+
+    auto_ancho = int(auto_jugador_ancho * escala)
+    auto_alto = int(auto_jugador_alto * escala)
+
+    if auto_ancho <= 10 or auto_alto <= 8:
+        return
+
+    imagen = pygame.transform.scale(
+        obtener_imagen_auto(oponente),
+        (auto_ancho, auto_alto)
+    )
+
+    curva_actual = obtener_curva_por_distancia(jugador_vista.distancia)
+
+    # Centro visual de la pista según la cámara del jugador que mira.
+    centro_pista_x = ancho // 2
+    centro_pista_x += int(jugador_vista.desplazamiento_pista * t)
+    centro_pista_x += int(curva_actual * (t ** 2))
+
+    # El carril del rival depende SOLO del rival.
+    carril_rival = oponente.carril
+
+    # Separación lateral.
+    if progreso == 0:
+        # Cuando están juntos en la salida/meta, usa misma separación que el jugador.
+        limite_lateral = 170
+    else:
+        # Cuando está adelante, aplica perspectiva.
+        ancho_pista_visible = 80 + (t ** 1.45) * 620
+        limite_lateral = ancho_pista_visible * 0.45
+
+    auto_x = centro_pista_x - auto_ancho // 2
+    auto_x += int(carril_rival * limite_lateral)
+
+    auto_x = max(5, min(ancho - auto_ancho - 5, auto_x))
+
+    superficie.blit(imagen, (auto_x, auto_y))
+
+
+def dibujar_vista_jugador(jugador, oponente, y_destino):
+    superficie = pygame.Surface((ANCHO, ALTO_PANTALLA))
+
+    dibujar_pista_textura(superficie, jugador)
+
+    dibujar_auto_oponente(superficie, jugador, oponente)
+    dibujar_auto_jugador(superficie, jugador)
+
+    if fase_carrera == "conteo":
+        dibujar_conteo(superficie)
+
+    if fase_carrera == "carrera":
+        dibujar_hud_jugador(superficie, jugador)
+
+    ventana.blit(superficie, (0, y_destino))
+
+
+def dibujar_intro_carrera_split():
+    global distancia_meta, fase_carrera, tiempo_inicio_conteo
+
+    distancia_meta -= velocidad_intro
+    if distancia_meta <= 0:
+        distancia_meta = 0
+        fase_carrera = "conteo"
+        tiempo_inicio_conteo = pygame.time.get_ticks()
+        jugador1.reiniciar()
+        jugador2.reiniciar()
+
+    for y_destino, nombre in [(0, "JUGADOR 1"), (ALTO_PANTALLA, "JUGADOR 2")]:
+        superficie = pygame.Surface((ANCHO, ALTO_PANTALLA))
+        dibujar_pista_textura(superficie, jugador1 if nombre == "JUGADOR 1" else jugador2)
+        dibujar_auto_jugador(superficie, jugador1 if nombre == "JUGADOR 1" else jugador2)
+
+        fuente = pygame.font.SysFont("arial", 24, bold=True)
+        texto = fuente.render(f"{nombre} - {int(distancia_meta)} m", True, (255, 255, 255))
+        sombra = fuente.render(f"{nombre} - {int(distancia_meta)} m", True, (0, 0, 0))
+        superficie.blit(sombra, (17, 17))
+        superficie.blit(texto, (15, 15))
+
+        ventana.blit(superficie, (0, y_destino))
+
+
+
+
+def dibujar_juego_final(dt):
+    if fase_carrera == "intro":
+        dibujar_intro_carrera_split()
+        pygame.draw.rect(ventana, (0, 0, 0), (0, ALTO_PANTALLA - 3, ANCHO, 6))
+        return
+
+    if fase_carrera == "carrera":
+        teclas = pygame.key.get_pressed()
+        actualizar_jugador(jugador1, teclas, dt)
+        actualizar_jugador(jugador2, teclas, dt)
+        actualizar_posiciones()
+
+    dibujar_vista_jugador(jugador1, jugador2, 0)
+    dibujar_vista_jugador(jugador2, jugador1, ALTO_PANTALLA)
+    pygame.draw.rect(ventana, (0, 0, 0), (0, ALTO_PANTALLA - 3, ANCHO, 6))
+
+
+# =========================
+# INTRO INICIAL
+# =========================
+try:
+    pygame.mixer.music.load("images/sonido/intro.mp3")
+    pygame.mixer.music.play(-1)
+except Exception:
+    pass
+
+fade_in()
 tiempo_inicio = pygame.time.get_ticks()
 duracion = 10000
-
 fade_logo_in = 1500
 tiempo_visible = 3500
 fade_logo_out = 1500
-
 mostrar_inicio = True
 
 while mostrar_inicio:
     reloj.tick(FPS)
-
     tiempo_actual = pygame.time.get_ticks()
     tiempo_pasado = tiempo_actual - tiempo_inicio
-
     ventana.blit(imagen_inicio, (0, 0))
 
     alpha = 0
-
     if tiempo_pasado < fade_logo_in:
         alpha = int((tiempo_pasado / fade_logo_in) * 255)
     elif tiempo_pasado < fade_logo_in + tiempo_visible:
@@ -228,7 +640,6 @@ while mostrar_inicio:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
-
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
                 fade_out()
@@ -238,296 +649,16 @@ while mostrar_inicio:
 
 
 # =========================
-# IMÁGENES DEL MENÚ
-# =========================
-
-fondo = cargar_imagen("images/topgear/img_5.png", (ANCHO, ALTO))
-
-titulo = cargar_imagen("images/topgear/top.png", (400, 150), True)
-gear = cargar_imagen("images/topgear/gear.png", (400, 150), True)
-
-menu_img_6 = cargar_imagen("images/topgear/img_6.png", (ANCHO, ALTO))
-menu_img_7 = cargar_imagen("images/topgear/img_7.png", (ANCHO, ALTO))
-sub_menu = cargar_imagen("images/topgear/img_9.png", (ANCHO, ALTO))
-pantalla_carrera = cargar_imagen("images/topgear/mapa.png", (ANCHO, ALTO))
-pantalla_carga = cargar_imagen("images/topgear/img_12.png", (ANCHO, ALTO))
-
-# =========================
-# IMÁGENES DE LA INTRO CARRERA
-# =========================
-
-road_texture = cargar_imagen("images/topgear/auto/road2.png")
-auto_jugador = cargar_imagen("images/topgear/auto/img.png", alpha=True)
-
-auto_izquierda = cargar_imagen("images/topgear/auto/img_1.png", alpha=True)
-auto_derecha = cargar_imagen("images/topgear/auto/img_2.png", alpha=True)
-desplazamiento_pista = 0
-imagen_auto_actual = "centro"
-
-# =========================
-# VARIABLES INTRO CARRERA
-# =========================
-
-distancia_meta = 200
-velocidad_intro = 0.75
-intro_carrera_terminada = False
-offset_pista = 0
-
-
-def reiniciar_intro_carrera():
-    global distancia_meta, intro_carrera_terminada, offset_pista
-    global tiempo_inicio_conteo, conteo_terminado, velocidad_auto
-    global fase_carrera
-
-    distancia_meta = 200
-    intro_carrera_terminada = False
-    offset_pista = 0
-    tiempo_inicio_conteo = None
-    conteo_terminado = False
-    velocidad_auto = 0
-    fase_carrera = "intro"
-
-def dibujar_fondo_carrera():
-    # Cielo
-    for y in range(0, 240):
-        r = 70 + int(y * 0.25)
-        g = 165 + int(y * 0.18)
-        b = 235
-        pygame.draw.line(ventana, (r, g, b), (0, y), (ANCHO, y))
-
-    # Sol
-    pygame.draw.circle(ventana, (255, 225, 90), (665, 80), 45)
-    pygame.draw.circle(ventana, (255, 245, 160), (665, 80), 28)
-
-    # Montañas
-    pygame.draw.polygon(ventana, (150, 105, 80), [(0, 240), (130, 105), (285, 240)])
-    pygame.draw.polygon(ventana, (175, 125, 90), [(180, 240), (395, 75), (620, 240)])
-    pygame.draw.polygon(ventana, (140, 95, 70), [(510, 240), (690, 110), (850, 240)])
-
-    pygame.draw.polygon(ventana, (210, 160, 105), [(0, 260), (230, 155), (450, 260)])
-    pygame.draw.polygon(ventana, (195, 145, 95), [(370, 260), (590, 150), (820, 260)])
-
-    # Desierto
-    pygame.draw.rect(ventana, (210, 155, 90), (0, 240, ANCHO, ALTO))
-
-
-def dibujar_pista_textura(progreso):
-    global offset_pista
-
-    if fase_carrera == "intro":
-        offset_pista -= 6
-    elif fase_carrera == "carrera":
-        offset_pista -= velocidad_auto * 0.10
-
-    dibujar_fondo_carrera()
-
-    horizonte_y = 300
-    segmentos = 1000
-
-    for i in range(segmentos):
-        t1 = i / segmentos
-        t2 = (i + 1) / segmentos
-
-        y1 = int(horizonte_y + t1 * (ALTO - horizonte_y))
-        y2 = int(horizonte_y + t2 * (ALTO - horizonte_y))
-
-        if y2 <= y1:
-            continue
-
-        ancho1 = int(10 + t1 * 2500)
-        ancho2 = int(10 + t2 * 2500)
-
-        x1 = ANCHO // 2 - ancho1 // 2 + int(desplazamiento_pista * t1)
-        x2 = ANCHO // 2 - ancho2 // 2 + int(desplazamiento_pista * t2)
-
-        textura_h = road_texture.get_height()
-        textura_w = road_texture.get_width()
-
-        # arriba toma pedazo pequeño, abajo toma pedazo más grande
-        slice_h = 3
-
-        profundidad = min(1.0, t1 * 1.8)
-
-        # controla cuántas veces se repite la textura
-        # más alto = menos imágenes pegadas
-        escala_textura = 160
-
-        textura_pos = (offset_pista * profundidad) + (i / segmentos) * escala_textura
-
-        slice_y = int(textura_pos) % (textura_h - slice_h)
-
-        road_slice = road_texture.subsurface((0, slice_y, textura_w, slice_h))
-        road_slice = pygame.transform.smoothscale(road_slice, (ancho2, y2 - y1))
-
-        mascara = pygame.Surface((ANCHO, y2 - y1), pygame.SRCALPHA)
-
-        puntos = [
-            (x1, 0),
-            (x1 + ancho1, 0),
-            (x2 + ancho2, y2 - y1),
-            (x2, y2 - y1)
-        ]
-
-        pygame.draw.polygon(mascara, (255, 255, 255, 255), puntos)
-
-        temp = pygame.Surface((ANCHO, y2 - y1), pygame.SRCALPHA)
-        temp.blit(road_slice, (x2, 0))
-        temp.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-
-        ventana.blit(temp, (0, y1))
-
-
-
-def dibujar_meta_y_auto(progreso):
-    # Meta acercándose
-    meta_y = int(120 + progreso * 260)
-    meta_ancho = int(130 + progreso * 560)
-    meta_alto = int(30 + progreso * 70)
-    meta_x = ANCHO // 2 - meta_ancho // 2
-
-    poste_alto = meta_alto + 120
-
-    pygame.draw.rect(ventana, (50, 50, 50), (meta_x + 12, meta_y, 14, poste_alto))
-    pygame.draw.rect(ventana, (50, 50, 50), (meta_x + meta_ancho - 26, meta_y, 14, poste_alto))
-
-    pygame.draw.rect(ventana, (15, 15, 15), (meta_x - 5, meta_y - 5, meta_ancho + 10, meta_alto + 10))
-
-    cuadros_x = 14
-    cuadros_y = 2
-    cuadro_w = meta_ancho / cuadros_x
-    cuadro_h = meta_alto / cuadros_y
-
-    for fila in range(cuadros_y):
-        for col in range(cuadros_x):
-            color = (20, 20, 20) if (fila + col) % 2 == 0 else (245, 245, 245)
-            pygame.draw.rect(
-                ventana,
-                color,
-                (
-                    meta_x + col * cuadro_w,
-                    meta_y + fila * cuadro_h,
-                    cuadro_w,
-                    cuadro_h
-                )
-            )
-
-    # Texto START
-    fuente_meta = pygame.font.SysFont("arial", int(22 + progreso * 24), bold=True)
-    texto_meta = fuente_meta.render("START", True, (255, 255, 255))
-    ventana.blit(
-        texto_meta,
-        (ANCHO // 2 - texto_meta.get_width() // 2, meta_y + meta_alto + 10)
-    )
-
-    # Auto esperando en la meta
-    auto_ancho = int(40 + progreso * 150)
-    auto_alto = int(25 + progreso * 75)
-
-    auto = pygame.transform.scale(auto_jugador, (auto_ancho, auto_alto))
-    auto_x = ANCHO // 2 - auto_ancho // 2
-
-    auto_y = int((meta_y + meta_alto + 95) + progreso * 40)
-
-    if progreso >= 1:
-        auto_y = 430
-
-    ventana.blit(auto, (auto_x, auto_y))
-
-
-def dibujar_intro_carrera():
-    global distancia_meta, intro_carrera_terminada
-    global tiempo_inicio_conteo, conteo_terminado, fase_carrera
-
-    if fase_carrera == "intro":
-        distancia_meta -= velocidad_intro
-
-        if distancia_meta <= 0:
-            distancia_meta = 0
-            intro_carrera_terminada = True
-            fase_carrera = "conteo"
-            tiempo_inicio_conteo = pygame.time.get_ticks()
-
-    progreso = 1 - (distancia_meta / 200)
-
-    dibujar_pista_textura(progreso)
-    dibujar_auto(progreso)
-
-    fuente = pygame.font.SysFont("arial", 30, bold=True)
-
-    texto = fuente.render(f"{int(distancia_meta)} m", True, (255, 255, 255))
-    sombra = fuente.render(f"{int(distancia_meta)} m", True, (0, 0, 0))
-
-    ventana.blit(sombra, (32, 32))
-    ventana.blit(texto, (30, 30))
-
-    if fase_carrera == "conteo":
-        tiempo_pasado = pygame.time.get_ticks() - tiempo_inicio_conteo
-
-        if tiempo_pasado < 1000:
-            numero = "3"
-        elif tiempo_pasado < 2000:
-            numero = "2"
-        elif tiempo_pasado < 3000:
-            numero = "1"
-        else:
-            numero = ""
-            conteo_terminado = True
-            fase_carrera = "carrera"
-
-        if numero != "":
-            fuente_conteo = pygame.font.SysFont("arial", 90, bold=True)
-            texto2 = fuente_conteo.render(numero, True, (255, 255, 255))
-            sombra2 = fuente_conteo.render(numero, True, (0, 0, 0))
-
-            x = ANCHO // 2 - texto2.get_width() // 2
-            y = 250
-
-            ventana.blit(sombra2, (x + 4, y + 4))
-            ventana.blit(texto2, (x, y))
-
-
-# =========================
-# VARIABLES MENÚ
-# =========================
-
-angulo = 360
-angulo_gear = 360
-mostrar_press_start = False
-tiempo_final_titulo = None
-
-y_titulo = -10
-y_final = 140
-
-y_gear = 650
-y_gearfinal = 230
-
-velocidad = 5
-
-escala = 0.001
-escala_final = 1.0
-velocidad_escala = 0.01
-
-mostrar_gear = False
-delay_gear = 1000
-
-tiempo_estado = 0
-estado = "intro_menu"
-opcion_menu = "img_6"
-musica_juego_iniciada = False
-
-
-# =========================
 # LOOP PRINCIPAL
 # =========================
-
 while True:
     reloj.tick(FPS)
+    dt = reloj.get_time() / 1000
 
     # =========================
     # MENÚ DE OPCIONES
     # =========================
     if estado == "menu_opciones":
-
         if opcion_menu == "img_6":
             ventana.blit(menu_img_6, (0, 0))
         elif opcion_menu == "img_7":
@@ -537,18 +668,14 @@ while True:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_s:
                     opcion_menu = "img_7"
-
                 if event.key == pygame.K_w:
                     opcion_menu = "img_6"
-
                 if event.key == pygame.K_RETURN:
                     if opcion_menu == "img_6":
                         estado = "submenu"
-
                     elif opcion_menu == "img_7":
                         estado = "mapa"
                         tiempo_estado = pygame.time.get_ticks()
@@ -561,17 +688,14 @@ while True:
     # =========================
     if estado == "submenu":
         ventana.blit(sub_menu, (0, 0))
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     estado = "menu_opciones"
                     opcion_menu = "img_6"
-
         pygame.display.update()
         continue
 
@@ -584,10 +708,12 @@ while True:
         if pygame.time.get_ticks() - tiempo_estado > 3000:
             estado = "carga_juego"
             tiempo_estado = pygame.time.get_ticks()
-
             if not musica_juego_iniciada:
-                pygame.mixer.music.load("images/sonido/lasvegas.mp3")
-                pygame.mixer.music.play(-1)
+                try:
+                    pygame.mixer.music.load("images/sonido/lasvegas.mp3")
+                    pygame.mixer.music.play(-1)
+                except Exception:
+                    pass
                 musica_juego_iniciada = True
 
         for event in pygame.event.get():
@@ -605,7 +731,7 @@ while True:
         ventana.blit(pantalla_carga, (0, 0))
 
         if pygame.time.get_ticks() - tiempo_estado > 2000:
-            reiniciar_intro_carrera()
+            reiniciar_carrera()
             estado = "juego_final"
 
         for event in pygame.event.get():
@@ -617,57 +743,15 @@ while True:
         continue
 
     # =========================
-    # INTRO CARRERA
+    # JUEGO FINAL 2 JUGADORES
     # =========================
     if estado == "juego_final":
-
-        dt = reloj.get_time() / 1000
-
-        if fase_carrera == "carrera":
-            teclas = pygame.key.get_pressed()
-            if teclas[pygame.K_d]:
-                desplazamiento_pista -= 12
-                imagen_auto_actual = "derecha"
-            elif teclas[pygame.K_a]:
-                desplazamiento_pista += 12
-                imagen_auto_actual = "izquierda"
-            else:
-                imagen_auto_actual = "centro"
-
-            fuerza_giro = 4 + (velocidad_auto * 0.05)
-            desplazamiento_pista = max(-500, min(500, desplazamiento_pista))
-            if teclas[pygame.K_d]:
-                desplazamiento_pista -= fuerza_giro
-                imagen_auto_actual = "derecha"
-
-            elif teclas[pygame.K_a]:
-                desplazamiento_pista += fuerza_giro
-                imagen_auto_actual = "izquierda"
-
-            else:
-                imagen_auto_actual = "centro"
-
-            if teclas[pygame.K_SPACE]:
-                velocidad_auto += aceleracion * dt
-
-                if velocidad_auto > velocidad_max:
-                    velocidad_auto = velocidad_max
-            else:
-                velocidad_auto -= aceleracion * dt * 0.5
-
-                if velocidad_auto < 0:
-                    velocidad_auto = 0
-
-        dibujar_intro_carrera()
-
-        if fase_carrera == "carrera":
-            dibujar_hud_velocidad()
+        dibujar_juego_final(dt)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     estado = "menu_opciones"
@@ -678,11 +762,10 @@ while True:
     # =========================
     # INTRO MENÚ TOP GEAR
     # =========================
-
     ventana.blit(fondo, (0, 0))
 
     if y_titulo < y_final:
-        y_titulo += velocidad
+        y_titulo += velocidad_menu
     else:
         y_titulo = y_final
 
@@ -708,7 +791,7 @@ while True:
 
     if mostrar_gear:
         if y_gear > y_gearfinal:
-            y_gear -= velocidad
+            y_gear -= velocidad_menu
         else:
             y_gear = y_gearfinal
 
@@ -745,18 +828,15 @@ while True:
     if mostrar_press_start:
         fuente = pygame.font.SysFont("arial", 38)
         texto = fuente.render("PRESS START", True, (255, 255, 255))
-
         rect_texto = texto.get_rect()
         rect_texto.x = ANCHO // 2 - rect_texto.width // 2
         rect_texto.y = ALTO // 2 + 120
-
         ventana.blit(texto, rect_texto)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
-
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN and mostrar_press_start:
                 estado = "menu_opciones"
