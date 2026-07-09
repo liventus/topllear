@@ -1,9 +1,7 @@
 import pygame
 import sys
 
-# =========================
-# CONFIGURACIÓN GENERAL
-# =========================
+
 pygame.init()
 pygame.mixer.init()
 
