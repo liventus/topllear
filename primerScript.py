@@ -392,9 +392,61 @@ def actualizar_posiciones():
         jugador2.posicion = 1
 
 
-def dibujar_vista_jugador(jugador, y_destino):
+
+def dibujar_auto_oponente(superficie, jugador_vista, oponente):
+    diferencia = oponente.distancia - jugador_vista.distancia
+
+    # Regla tipo Top Gear:
+    # Solo ves al rival si está ADELANTE de ti.
+    # Si está detrás o casi al costado, ya no se dibuja.
+    if diferencia <= 2:
+        return
+
+    # Si está demasiado lejos adelante, desaparece en el horizonte.
+    distancia_visible_max = 55
+    if diferencia > distancia_visible_max:
+        return
+
+    # Mientras más lejos está, más arriba aparece.
+    alto = superficie.get_height()
+    horizonte_y = 125
+    y_cerca = alto - 95
+    progreso = diferencia / distancia_visible_max
+
+    auto_y = int(y_cerca - progreso * (y_cerca - horizonte_y))
+
+    # Mientras más lejos está, más pequeño se ve.
+    escala = 1.0 - progreso * 0.75
+    escala = max(0.20, min(1.0, escala))
+
+    auto_ancho = int(80 * escala)
+    auto_alto = int(48 * escala)
+
+    if auto_ancho <= 10 or auto_alto <= 8:
+        return
+
+    imagen = pygame.transform.scale(
+        obtener_imagen_auto(oponente),
+        (auto_ancho, auto_alto)
+    )
+
+    # Posición horizontal del rival.
+    # Usamos su desplazamiento para que se vea si va a la izquierda o derecha.
+    auto_x = superficie.get_width() // 2 - auto_ancho // 2
+    auto_x += int((oponente.desplazamiento_pista - jugador_vista.desplazamiento_pista) * escala * 0.25)
+
+    # Evita que se salga totalmente de pantalla.
+    auto_x = max(20, min(superficie.get_width() - auto_ancho - 20, auto_x))
+
+    superficie.blit(imagen, (auto_x, auto_y))
+
+
+def dibujar_vista_jugador(jugador, oponente, y_destino):
     superficie = pygame.Surface((ANCHO, ALTO_PANTALLA))
+
     dibujar_pista_textura(superficie, jugador)
+
+    dibujar_auto_oponente(superficie, jugador, oponente)
     dibujar_auto_jugador(superficie, jugador)
 
     if fase_carrera == "conteo":
@@ -445,8 +497,8 @@ def dibujar_juego_final(dt):
         actualizar_jugador(jugador2, teclas, dt)
         actualizar_posiciones()
 
-    dibujar_vista_jugador(jugador1, 0)
-    dibujar_vista_jugador(jugador2, ALTO_PANTALLA)
+    dibujar_vista_jugador(jugador1, jugador2, 0)
+    dibujar_vista_jugador(jugador2, jugador1, ALTO_PANTALLA)
     pygame.draw.rect(ventana, (0, 0, 0), (0, ALTO_PANTALLA - 3, ANCHO, 6))
 
 
