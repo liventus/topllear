@@ -73,7 +73,14 @@ class Jugador:
 
         self.velocidad = 0
         self.distancia = 0
+
+        # Mueve la pista/cámara propia de este jugador
         self.desplazamiento_pista = 0
+
+        # Carril real del auto en la pista.
+        # -1 izquierda, 0 centro, +1 derecha
+        self.carril = 0.0
+
         self.offset_pista = 0
         self.imagen_actual = "centro"
         self.posicion = 1
@@ -82,6 +89,7 @@ class Jugador:
         self.velocidad = 0
         self.distancia = 0
         self.desplazamiento_pista = 0
+        self.carril = 0.0
         self.offset_pista = 0
         self.imagen_actual = "centro"
         self.posicion = 1
@@ -356,16 +364,31 @@ def reiniciar_carrera():
 def actualizar_jugador(jugador, teclas, dt):
     if teclas[jugador.derecha]:
         fuerza_giro = 4 + (jugador.velocidad * 0.05)
+
+        # La pista/cámara se mueve en su pantalla
         jugador.desplazamiento_pista -= fuerza_giro
+
+        # Posición real del jugador en la pista
+        jugador.carril += 0.035 + jugador.velocidad * 0.00010
+
         jugador.imagen_actual = "derecha"
+
     elif teclas[jugador.izquierda]:
         fuerza_giro = 4 + (jugador.velocidad * 0.05)
+
+        # La pista/cámara se mueve en su pantalla
         jugador.desplazamiento_pista += fuerza_giro
+
+        # Posición real del jugador en la pista
+        jugador.carril -= 0.035 + jugador.velocidad * 0.00010
+
         jugador.imagen_actual = "izquierda"
+
     else:
         jugador.imagen_actual = "centro"
 
     jugador.desplazamiento_pista = max(-500, min(500, jugador.desplazamiento_pista))
+    jugador.carril = max(-1.0, min(1.0, jugador.carril))
 
     if teclas[jugador.acelerar]:
         jugador.velocidad += aceleracion * dt
@@ -396,26 +419,30 @@ def actualizar_posiciones():
 def dibujar_auto_oponente(superficie, jugador_vista, oponente):
     diferencia = oponente.distancia - jugador_vista.distancia
 
-    # Regla tipo Top Gear:
-    # Solo ves al rival si está ADELANTE de ti.
-    # Si está detrás o casi al costado, ya no se dibuja.
+    # Solo ves al rival si está adelante.
     if diferencia <= 2:
         return
 
-    # Si está demasiado lejos adelante, desaparece en el horizonte.
     distancia_visible_max = 55
     if diferencia > distancia_visible_max:
         return
 
-    # Mientras más lejos está, más arriba aparece.
+    ancho = superficie.get_width()
     alto = superficie.get_height()
+
     horizonte_y = 125
     y_cerca = alto - 95
+
     progreso = diferencia / distancia_visible_max
 
+    # Cerca abajo, lejos arriba.
     auto_y = int(y_cerca - progreso * (y_cerca - horizonte_y))
 
-    # Mientras más lejos está, más pequeño se ve.
+    # Profundidad visual: 0 horizonte, 1 cerca.
+    t = (auto_y - horizonte_y) / (alto - horizonte_y)
+    t = max(0.0, min(1.0, t))
+
+    # Tamaño con perspectiva.
     escala = 1.0 - progreso * 0.75
     escala = max(0.20, min(1.0, escala))
 
@@ -430,13 +457,37 @@ def dibujar_auto_oponente(superficie, jugador_vista, oponente):
         (auto_ancho, auto_alto)
     )
 
-    # Posición horizontal del rival.
-    # Usamos su desplazamiento para que se vea si va a la izquierda o derecha.
-    auto_x = superficie.get_width() // 2 - auto_ancho // 2
-    auto_x += int((oponente.desplazamiento_pista - jugador_vista.desplazamiento_pista) * escala * 0.25)
+    # =====================================================
+    # REFLEJO AMARRADO A LA PISTA DEL JUGADOR QUE MIRA
+    # =====================================================
+    # Si jugador_vista mueve su pista/cámara, el reflejo se mueve junto con la pista.
+    # Pero el carril real del reflejo depende SOLO del oponente.
+    #
+    # Ejemplo:
+    # jugador1 está adelante sin moverse.
+    # jugador2 se mueve a la derecha.
+    # En la pantalla de jugador2, jugador1 se mueve junto con la pista/cámara.
 
-    # Evita que se salga totalmente de pantalla.
-    auto_x = max(20, min(superficie.get_width() - auto_ancho - 20, auto_x))
+    curva_actual = obtener_curva_por_distancia(jugador_vista.distancia)
+
+    # Centro visual de la pista en esta profundidad.
+    # IMPORTANTE: usamos jugador_vista.desplazamiento_pista para que el reflejo
+    # se mueva junto con la pista visible de esa pantalla.
+    centro_pista_x = ancho // 2
+    centro_pista_x += int(jugador_vista.desplazamiento_pista * t)
+    centro_pista_x += int(curva_actual * (t ** 2))
+
+    # Carril real del oponente.
+    carril_rival = oponente.carril
+
+    # Ancho visible de la pista según profundidad.
+    ancho_pista_visible = 80 + (t ** 1.45) * 620
+    limite_lateral = ancho_pista_visible * 0.45
+
+    auto_x = centro_pista_x - auto_ancho // 2
+    auto_x += int(carril_rival * limite_lateral)
+
+    auto_x = max(5, min(ancho - auto_ancho - 5, auto_x))
 
     superficie.blit(imagen, (auto_x, auto_y))
 
