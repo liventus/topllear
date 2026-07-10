@@ -11,7 +11,7 @@ ALTO_PANTALLA = ALTO // 2
 FPS = 60
 
 ventana = pygame.display.set_mode((ANCHO, ALTO))
-pygame.display.set_caption("TOPLLEAR - 2 JUGADORES")
+pygame.display.set_caption("TOPLLEAR - 2 JUGADORES PRUEBA")
 reloj = pygame.time.Clock()
 
 velocidad_max = 200
